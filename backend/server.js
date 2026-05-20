@@ -175,3 +175,124 @@ ${extractedText.slice(0, 3000)}
     }
   }
 );
+app.post(
+  "/generate-flashcards",
+  upload.single("pdf"),
+
+  async (req, res) => {
+    try {
+      const filePath = req.file.path;
+
+      const dataBuffer =
+        fs.readFileSync(filePath);
+
+      const pdfData =
+        await pdfParse(dataBuffer);
+
+      const extractedText =
+        pdfData.text;
+
+      const completion =
+        await groq.chat.completions.create({
+          messages: [
+            {
+              role: "system",
+              content: `
+Generate study flashcards.
+
+Return ONLY JSON format like this:
+
+[
+  {
+    "question": "...",
+    "answer": "..."
+  }
+]
+`,
+            },
+            {
+              role: "user",
+              content: `
+Create flashcards from this:
+
+${extractedText.slice(0, 3000)}
+`,
+            },
+          ],
+          model: "llama-3.1-8b-instant",
+        });
+
+      fs.unlinkSync(filePath);
+
+      const rawResponse =
+        completion.choices[0].message.content;
+
+      const flashcards =
+        JSON.parse(rawResponse);
+
+      res.json({
+        flashcards,
+      });
+    } catch (error) {
+      console.log(error);
+
+      res.status(500).json({
+        error:
+          "Flashcard generation failed",
+      });
+    }
+  }
+);
+
+app.post("/study-plan", async (req, res) => {
+  try {
+    const {
+      subject,
+      examDate,
+      hoursPerDay,
+    } = req.body;
+
+    const completion =
+      await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: `
+You are an expert study planner.
+
+Create a detailed daily study schedule.
+
+Rules:
+- Break study into days
+- Include revision
+- Include practice questions
+- Make it realistic
+- Keep it organized
+`,
+          },
+          {
+            role: "user",
+            content: `
+Subject: ${subject}
+
+Exam Date: ${examDate}
+
+Hours Per Day: ${hoursPerDay}
+`,
+          },
+        ],
+        model: "llama-3.1-8b-instant",
+      });
+
+    res.json({
+      plan:
+        completion.choices[0].message.content,
+    });
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      error: "Study plan failed",
+    });
+  }
+});
