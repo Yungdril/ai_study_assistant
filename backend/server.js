@@ -293,3 +293,12 @@ Hours Per Day: ${hoursPerDay}
     });
   }
 });
+// Prevent Render free tier from sleeping
+const https = require("https");
+setInterval(() => {
+  https.get("https://smartpal.onrender.com", (res) => {
+    console.log("Keep-alive ping:", res.statusCode);
+  }).on("error", (err) => {
+    console.log("Ping error:", err.message);
+  });
+}, 14 * 60 * 1000); // ping every 14 minutes
