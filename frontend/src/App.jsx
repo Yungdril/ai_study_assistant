@@ -230,8 +230,17 @@ function App() {
   // ── Login Screen ──────────────────────────────────────────────
   if (!loggedIn) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
-        <div className="bg-slate-900 p-10 rounded-2xl w-[350px] space-y-4 border border-slate-800">
+      <div
+        className="min-h-screen flex items-center justify-center text-white relative"
+        style={{
+          backgroundImage: "url('/login-bg.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        <div className="absolute inset-0 bg-black/50" />
+        <div className="relative z-10 bg-white/10 backdrop-blur-md border border-white/20 p-10 rounded-2xl w-[350px] space-y-4">
           <h1 className="text-3xl font-bold text-center">AI Study Assistant</h1>
 
           <input
