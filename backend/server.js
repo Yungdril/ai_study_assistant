@@ -16,7 +16,11 @@ const upload = multer({
   dest: "uploads",
 });
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+  })
+);
 app.use(express.json());
 
 const groq = new Groq({
