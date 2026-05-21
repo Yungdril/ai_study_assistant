@@ -125,24 +125,22 @@ app.post(
   upload.single("pdf"),
   async (req, res) => {
     try {
-      console.log("FILE:", req.file);
+      if (!req.file) {
+        return res.status(400).json({
+          error: "No PDF uploaded",
+        });
+      }
 
-      const filePath = req.file.path;
+      const fs = require("fs");
 
-      const dataBuffer = fs.readFileSync(filePath);
+      const dataBuffer =
+        fs.readFileSync(req.file.path);
 
-      console.log("PDF READ SUCCESS");
+      const pdfData =
+        await pdfParse(dataBuffer);
 
-      const pdfData = await pdfParse(dataBuffer);
-
-      console.log("PDF PARSED");
-
-      const extractedText = pdfData.text;
-
-      console.log(
-        "TEXT LENGTH:",
-        extractedText.length
-      );
+      const text =
+        pdfData.text.slice(0, 4000);
 
       const completion =
         await groq.chat.completions.create({
@@ -150,25 +148,20 @@ app.post(
             {
               role: "system",
               content:
-                "You summarize study materials clearly for students.",
+                "Summarize this PDF clearly for students.",
             },
             {
               role: "user",
-              content: `
-Summarize this study material:
-
-${extractedText.slice(0, 3000)}
-`,
+              content: text,
             },
           ],
           model: "llama-3.1-8b-instant",
         });
 
-      fs.unlinkSync(filePath);
-
       res.json({
         summary:
-          completion.choices[0].message.content,
+          completion.choices[0].message
+            .content,
       });
     } catch (error) {
       console.log("PDF ERROR:", error);
