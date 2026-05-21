@@ -145,7 +145,7 @@ const [studyPlan, setStudyPlan] =
       setLoading(true);
 
       const response = await axios.post(
-        "http://localhost:5000/chat",
+        "https://smartpal.onrender.com/chat",
         {
           message: currentMessage,
         }
@@ -202,7 +202,7 @@ const [studyPlan, setStudyPlan] =
       setLoading(true);
 
       const response = await axios.post(
-        "http://localhost:5000/upload-pdf",
+        "https://smartpal.onrender.com/upload-pdf",
         formData,
         {
           headers: {
@@ -233,7 +233,7 @@ const [studyPlan, setStudyPlan] =
       setLoading(true);
 
       const response = await axios.post(
-        "http://localhost:5000/generate-quiz",
+        "https://smartpal.onrender.com/generate-quiz",
         formData,
         {
           headers: {
@@ -264,7 +264,7 @@ const [studyPlan, setStudyPlan] =
       setLoading(true);
 
       const response = await axios.post(
-        "http://localhost:5000/generate-flashcards",
+        "https://smartpal.onrender.com/generate-flashcards",
         formData,
         {
           headers: {
@@ -619,7 +619,7 @@ const startListening = () => {
     setLoading(true);
 
     const response = await axios.post(
-      "http://localhost:5000/study-plan",
+      "https://smartpal.onrender.com/study-plan",
       {
         subject,
         examDate,
