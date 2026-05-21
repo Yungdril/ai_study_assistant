@@ -2,44 +2,54 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
 import { auth, db } from "./firebase";
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from "firebase/auth";
-import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 
 const API = "https://smartpal.onrender.com";
 
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
 
-  const [chats, setChats] = useState([]);
-  const [currentChatId, setCurrentChatId] = useState(null);
-
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
+
   const [loading, setLoading] = useState(false);
 
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfSummary, setPdfSummary] = useState("");
-
-  const [subject, setSubject] = useState("");
-  const [examDate, setExamDate] = useState("");
-  const [hoursPerDay, setHoursPerDay] = useState("");
-  const [studyPlan, setStudyPlan] = useState("");
 
   const [quiz, setQuiz] = useState("");
   const [quizTopic, setQuizTopic] = useState("");
 
   const [flashcards, setFlashcards] = useState([]);
 
-  const [isListening, setIsListening] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [examDate, setExamDate] = useState("");
+  const [hoursPerDay, setHoursPerDay] = useState("");
+  const [studyPlan, setStudyPlan] = useState("");
 
-  const [activeTab, setActiveTab] = useState("chat");
+  const [activeTab, setActiveTab] =
+    useState("chat");
+
+  const [isListening, setIsListening] =
+    useState(false);
 
   useEffect(() => {
     if (loggedIn && user) {
@@ -53,12 +63,16 @@ function App() {
         collection(db, "messages"),
         where("userId", "==", user.uid)
       );
-      const querySnapshot = await getDocs(q);
+
+      const querySnapshot =
+        await getDocs(q);
+
       const loadedMessages = [];
+
       querySnapshot.forEach((doc) => {
-        loadedMessages.push({ sender: "user", text: doc.data().userMessage });
-        loadedMessages.push({ sender: "ai", text: doc.data().aiReply });
+        loadedMessages.push(doc.data());
       });
+
       setMessages(loadedMessages);
     } catch (error) {
       console.log(error);
@@ -67,7 +81,13 @@ function App() {
 
   const signup = async () => {
     try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
+      const result =
+        await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+
       setUser(result.user);
       setLoggedIn(true);
     } catch (error) {
@@ -77,7 +97,13 @@ function App() {
 
   const login = async () => {
     try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      const result =
+        await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+
       setUser(result.user);
       setLoggedIn(true);
     } catch (error) {
@@ -85,69 +111,71 @@ function App() {
     }
   };
 
-  const createNewChat = () => {
-    const newChat = { id: Date.now(), title: "New Chat", messages: [] };
-    setChats((prev) => [newChat, ...prev]);
-    setCurrentChatId(newChat.id);
-    setMessages([]);
-  };
-
   const sendMessage = async () => {
     if (!message.trim()) return;
 
     const currentMessage = message;
-    const userMessage = { sender: "user", text: currentMessage };
 
-    setMessages((prev) => [...prev, userMessage]);
     setMessage("");
 
     try {
       setLoading(true);
 
-      const response = await axios.post(`${API}/chat`, { message: currentMessage });
-
-      const aiMessage = { sender: "ai", text: response.data.reply };
-
-      setMessages((prev) => [...prev, aiMessage]);
-
-      setChats((prevChats) =>
-        prevChats.map((chat) => {
-          if (chat.id === currentChatId) {
-            return {
-              ...chat,
-              messages: [...chat.messages, userMessage, aiMessage],
-              title:
-                chat.messages.length === 0
-                  ? currentMessage.slice(0, 30)
-                  : chat.title,
-            };
-          }
-          return chat;
-        })
+      const response = await axios.post(
+        `${API}/chat`,
+        {
+          message: currentMessage,
+        }
       );
 
-      await addDoc(collection(db, "messages"), {
-        userId: user.uid,
+      const newMessage = {
         userMessage: currentMessage,
         aiReply: response.data.reply,
-        createdAt: new Date(),
-      });
+      };
+
+      setMessages((prev) => [
+        ...prev,
+        newMessage,
+      ]);
+
+      await addDoc(
+        collection(db, "messages"),
+        {
+          userId: user.uid,
+          ...newMessage,
+          createdAt: Date.now(),
+        }
+      );
     } catch (error) {
       console.log(error);
+      alert("Message failed");
     } finally {
       setLoading(false);
     }
   };
 
   const uploadPDF = async () => {
-    if (!pdfFile) return alert("Please select a PDF first.");
+    if (!pdfFile)
+      return alert("Select a PDF");
+
     const formData = new FormData();
+
     formData.append("pdf", pdfFile);
+
     try {
       setLoading(true);
-      const response = await axios.post(`${API}/upload-pdf`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+
+      const response = await axios.post(
+        `${API}/upload-pdf`,
+        formData,
+        {
+          headers: {
+            "Content-Type":
+              "multipart/form-data",
+          },
+        }
+      );
+
       setPdfSummary(response.data.summary);
     } catch (error) {
       console.log(error);
@@ -157,420 +185,408 @@ function App() {
     }
   };
 
-  // Fixed: uses /quiz endpoint with topic text (matches backend)
   const generateQuiz = async () => {
-    if (!quizTopic.trim()) return alert("Please enter a quiz topic.");
+    if (!quizTopic)
+      return alert("Enter topic");
+
     try {
       setLoading(true);
-      const response = await axios.post(`${API}/quiz`, { topic: quizTopic });
+
+      const response = await axios.post(
+        `${API}/quiz`,
+        {
+          topic: quizTopic,
+        }
+      );
+
       setQuiz(response.data.quiz);
     } catch (error) {
       console.log(error);
-      alert("Quiz generation failed");
     } finally {
       setLoading(false);
     }
   };
 
-  const generateFlashcards = async () => {
-    if (!pdfFile) return alert("Please select a PDF first.");
-    const formData = new FormData();
-    formData.append("pdf", pdfFile);
-    try {
-      setLoading(true);
-      const response = await axios.post(`${API}/generate-flashcards`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setFlashcards(response.data.flashcards);
-    } catch (error) {
-      console.log(error);
-      alert("Flashcard generation failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const generateFlashcards =
+    async () => {
+      if (!pdfFile)
+        return alert("Select PDF");
 
-  const generateStudyPlan = async () => {
-    if (!subject || !examDate || !hoursPerDay)
-      return alert("Please fill in all study plan fields.");
-    try {
-      setLoading(true);
-      const response = await axios.post(`${API}/study-plan`, {
-        subject,
-        examDate,
-        hoursPerDay,
-      });
-      setStudyPlan(response.data.plan);
-    } catch (error) {
-      console.log(error);
-      alert("Study plan failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+      const formData = new FormData();
+
+      formData.append("pdf", pdfFile);
+
+      try {
+        setLoading(true);
+
+        const response =
+          await axios.post(
+            `${API}/generate-flashcards`,
+            formData,
+            {
+              headers: {
+                "Content-Type":
+                  "multipart/form-data",
+              },
+            }
+          );
+
+        setFlashcards(
+          response.data.flashcards
+        );
+      } catch (error) {
+        console.log(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  const generateStudyPlan =
+    async () => {
+      try {
+        setLoading(true);
+
+        const response =
+          await axios.post(
+            `${API}/study-plan`,
+            {
+              subject,
+              examDate,
+              hoursPerDay,
+            }
+          );
+
+        setStudyPlan(response.data.plan);
+      } catch (error) {
+        console.log(error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const startListening = () => {
     const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return alert("Speech Recognition not supported");
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
+    if (!SpeechRecognition)
+      return alert(
+        "Speech recognition unsupported"
+      );
+
+    const recognition =
+      new SpeechRecognition();
+
     recognition.start();
+
     setIsListening(true);
 
     recognition.onresult = (event) => {
-      setMessage(event.results[0][0].transcript);
+      setMessage(
+        event.results[0][0].transcript
+      );
+
       setIsListening(false);
     };
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
+
+    recognition.onend = () =>
+      setIsListening(false);
   };
 
-  // ── Login Screen ──────────────────────────────────────────────
   if (!loggedIn) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center text-white relative"
+        className="min-h-screen flex items-center justify-center text-white relative bg-cover bg-center"
         style={{
-          backgroundImage: "url('/login-bg.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
+          backgroundImage:
+            "url('/login-bg.jpg')",
         }}
       >
-        <div className="absolute inset-0 bg-black/50" />
-        <div className="relative z-10 bg-white/10 backdrop-blur-md border border-white/20 p-10 rounded-2xl w-[350px] space-y-4">
-          <h1 className="text-3xl font-bold text-center">AI Study Assistant</h1>
+        <div className="absolute inset-0 bg-black/60"></div>
+
+        <div className="relative z-10 bg-white/10 backdrop-blur-md border border-white/10 p-10 rounded-3xl w-[350px] space-y-4">
+
+          <h1 className="text-3xl font-bold text-center">
+            SmartPal AI
+          </h1>
 
           <input
             type="email"
             placeholder="Email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 outline-none focus:border-blue-500"
+            onChange={(e) =>
+              setEmail(e.target.value)
+            }
+            className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700"
           />
 
           <input
             type="password"
             placeholder="Password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 outline-none focus:border-blue-500"
+            onChange={(e) =>
+              setPassword(e.target.value)
+            }
+            className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700"
           />
 
           <button
             onClick={signup}
-            className="w-full bg-blue-600 hover:bg-blue-700 transition p-3 rounded-xl font-semibold"
+            className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded-xl"
           >
             Sign Up
           </button>
 
           <button
             onClick={login}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 transition p-3 rounded-xl font-semibold"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 p-3 rounded-xl"
           >
             Login
           </button>
+
         </div>
       </div>
     );
   }
 
-  // ── Main App ──────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
+    <div
+      className="min-h-screen bg-cover bg-center text-white"
+      style={{
+        backgroundImage:
+          "url('/ai-bg.jpg')",
+      }}
+    >
+      <div className="min-h-screen bg-black/70 backdrop-blur-sm flex">
 
-      {/* Sidebar */}
-      <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col flex-shrink-0">
-        <div className="p-4 border-b border-slate-800">
-          <h1 className="text-lg font-bold mb-3">📚 SmartPal</h1>
-          <button
-            onClick={createNewChat}
-            className="w-full bg-blue-600 hover:bg-blue-700 transition p-2 rounded-xl font-semibold text-sm"
-          >
-            + New Chat
-          </button>
-        </div>
+        {/* SIDEBAR */}
+        <div className="w-72 hidden md:flex flex-col bg-white/10 backdrop-blur-md border-r border-white/10 p-5">
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {chats.map((chat) => (
-            <div
-              key={chat.id}
-              onClick={() => {
-                setCurrentChatId(chat.id);
-                setMessages(chat.messages);
-                setActiveTab("chat");
-              }}
-              className={`p-3 rounded-xl cursor-pointer transition text-sm ${
-                currentChatId === chat.id
-                  ? "bg-slate-700"
-                  : "hover:bg-slate-800"
-              }`}
-            >
-              {chat.title}
-            </div>
-          ))}
-          {chats.length === 0 && (
-            <p className="text-slate-500 text-xs text-center mt-4">
-              No chats yet. Start one!
-            </p>
-          )}
-        </div>
+          <h1 className="text-3xl font-bold mb-8">
+            SmartPal AI
+          </h1>
 
-        {/* Nav Tabs */}
-        <div className="p-3 border-t border-slate-800 space-y-1">
-          {["chat", "pdf", "quiz", "flashcards", "planner"].map((tab) => (
+          <div className="space-y-3">
+
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm capitalize transition ${
-                activeTab === tab
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-400 hover:bg-slate-800"
-              }`}
+              onClick={() =>
+                setActiveTab("chat")
+              }
+              className="w-full bg-blue-600 p-3 rounded-xl"
             >
-              {tab === "chat" && "💬 "}
-              {tab === "pdf" && "📄 "}
-              {tab === "quiz" && "🧠 "}
-              {tab === "flashcards" && "🃏 "}
-              {tab === "planner" && "📅 "}
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              💬 Chat
             </button>
-          ))}
+
+            <button
+              onClick={() =>
+                setActiveTab("pdf")
+              }
+              className="w-full bg-emerald-600 p-3 rounded-xl"
+            >
+              📄 PDF
+            </button>
+
+            <button
+              onClick={() =>
+                setActiveTab("quiz")
+              }
+              className="w-full bg-purple-600 p-3 rounded-xl"
+            >
+              🧠 Quiz
+            </button>
+
+            <button
+              onClick={() =>
+                setActiveTab("flashcards")
+              }
+              className="w-full bg-orange-600 p-3 rounded-xl"
+            >
+              🃏 Flashcards
+            </button>
+
+            <button
+              onClick={() =>
+                setActiveTab("planner")
+              }
+              className="w-full bg-pink-600 p-3 rounded-xl"
+            >
+              📅 Planner
+            </button>
+
+          </div>
+
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* MAIN */}
+        <div className="flex-1 flex flex-col">
 
-        {/* Header */}
-        <div className="border-b border-slate-800 p-4 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-xl font-bold capitalize">
-            {activeTab === "chat" && "💬 Chat"}
-            {activeTab === "pdf" && "📄 PDF Summary"}
-            {activeTab === "quiz" && "🧠 Quiz Generator"}
-            {activeTab === "flashcards" && "🃏 Flashcards"}
-            {activeTab === "planner" && "📅 Study Planner"}
-          </h2>
-          <span className="text-sm text-slate-400">Powered by Groq AI</span>
-        </div>
+          <div className="p-5 border-b border-white/10 bg-white/5 backdrop-blur-md">
+            <h2 className="text-2xl font-bold capitalize">
+              {activeTab}
+            </h2>
+          </div>
 
-        {/* ── CHAT TAB ── */}
-        {activeTab === "chat" && (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex ${
-                    msg.sender === "user" ? "justify-end" : "justify-start"
+          {/* CHAT */}
+          {activeTab === "chat" && (
+            <>
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+                {messages.map(
+                  (msg, index) => (
+                    <div
+                      key={index}
+                      className="space-y-4"
+                    >
+                      <div className="flex justify-end">
+                        <div className="max-w-2xl bg-blue-600 p-4 rounded-2xl">
+                          <ReactMarkdown
+                            remarkPlugins={[
+                              remarkGfm,
+                            ]}
+                          >
+                            {
+                              msg.userMessage
+                            }
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-start">
+                        <div className="max-w-2xl bg-white/10 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
+                          <ReactMarkdown
+                            remarkPlugins={[
+                              remarkGfm,
+                            ]}
+                          >
+                            {msg.aiReply}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {loading && (
+                  <div className="text-slate-300">
+                    AI is thinking...
+                  </div>
+                )}
+
+              </div>
+
+              <div className="p-5 border-t border-white/10 bg-white/5 flex gap-3">
+
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(e) =>
+                    setMessage(
+                      e.target.value
+                    )
+                  }
+                  onKeyDown={(e) =>
+                    e.key === "Enter" &&
+                    sendMessage()
+                  }
+                  placeholder="Ask SmartPal..."
+                  className="flex-1 bg-white/10 border border-white/10 rounded-xl p-4"
+                />
+
+                <button
+                  onClick={sendMessage}
+                  className="bg-blue-600 px-6 rounded-xl"
+                >
+                  Send
+                </button>
+
+                <button
+                  onClick={startListening}
+                  className={`px-4 rounded-xl ${
+                    isListening
+                      ? "bg-red-600"
+                      : "bg-purple-600"
                   }`}
                 >
-                  <div
-                    className={`max-w-2xl px-5 py-4 rounded-2xl shadow-lg ${
-                      msg.sender === "user" ? "bg-blue-600" : "bg-slate-800"
-                    }`}
-                  >
-                    <div className="prose prose-invert max-w-none text-sm">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.text}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {loading && (
-                <div className="text-slate-400 text-sm">AI is thinking...</div>
-              )}
-              {messages.length === 0 && (
-                <div className="text-center text-slate-500 mt-20">
-                  <p className="text-4xl mb-4">📚</p>
-                  <p className="text-lg font-semibold">Ask me anything to study!</p>
-                  <p className="text-sm mt-1">Start a new chat from the sidebar first.</p>
-                </div>
-              )}
-            </div>
+                  🎤
+                </button>
 
-            <div className="p-4 border-t border-slate-800 flex gap-3 flex-shrink-0">
-              <input
-                type="text"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder="Ask any study question..."
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-blue-500 text-sm"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition px-5 rounded-xl font-semibold text-sm"
-              >
-                Send
-              </button>
-              <button
-                onClick={startListening}
-                className={`px-4 rounded-xl font-semibold transition ${
-                  isListening
-                    ? "bg-red-600"
-                    : "bg-purple-600 hover:bg-purple-700"
-                }`}
-              >
-                {isListening ? "🔴" : "🎤"}
-              </button>
-            </div>
-          </div>
-        )}
+              </div>
+            </>
+          )}
 
-        {/* ── PDF TAB ── */}
-        {activeTab === "pdf" && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <h3 className="font-semibold text-slate-300">Upload a PDF to summarize</h3>
+          {/* PDF */}
+          {activeTab === "pdf" && (
+            <div className="p-6 space-y-4">
+
               <input
                 type="file"
                 accept=".pdf"
-                onChange={(e) => setPdfFile(e.target.files[0])}
-                className="text-sm text-slate-300"
+                onChange={(e) =>
+                  setPdfFile(
+                    e.target.files[0]
+                  )
+                }
               />
+
               <button
                 onClick={uploadPDF}
-                disabled={loading}
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition px-5 py-2 rounded-xl text-sm font-semibold"
+                className="bg-emerald-600 px-5 py-3 rounded-xl"
               >
-                {loading ? "Summarizing..." : "Summarize PDF"}
+                Upload PDF
               </button>
-            </div>
 
-            {pdfSummary && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-                <h3 className="font-bold text-lg mb-3">Summary</h3>
-                <div className="prose prose-invert max-w-none text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{pdfSummary}</ReactMarkdown>
+              {pdfSummary && (
+                <div className="bg-white/10 p-5 rounded-2xl">
+                  <ReactMarkdown
+                    remarkPlugins={[
+                      remarkGfm,
+                    ]}
+                  >
+                    {pdfSummary}
+                  </ReactMarkdown>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
-        {/* ── QUIZ TAB ── */}
-        {activeTab === "quiz" && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <h3 className="font-semibold text-slate-300">Enter a topic to generate a quiz</h3>
+          {/* QUIZ */}
+          {activeTab === "quiz" && (
+            <div className="p-6 space-y-4">
+
               <input
                 type="text"
-                placeholder="e.g. Photosynthesis, World War 2, Python loops..."
                 value={quizTopic}
-                onChange={(e) => setQuizTopic(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 outline-none focus:border-blue-500 text-sm"
+                onChange={(e) =>
+                  setQuizTopic(
+                    e.target.value
+                  )
+                }
+                placeholder="Quiz topic..."
+                className="w-full bg-white/10 p-4 rounded-xl"
               />
+
               <button
                 onClick={generateQuiz}
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition px-5 py-2 rounded-xl text-sm font-semibold"
+                className="bg-blue-600 px-5 py-3 rounded-xl"
               >
-                {loading ? "Generating..." : "Generate Quiz"}
+                Generate Quiz
               </button>
-            </div>
 
-            {quiz && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-                <h3 className="font-bold text-lg mb-3">Quiz</h3>
-                <div className="prose prose-invert max-w-none text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{quiz}</ReactMarkdown>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── FLASHCARDS TAB ── */}
-        {activeTab === "flashcards" && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <h3 className="font-semibold text-slate-300">Upload a PDF to generate flashcards</h3>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={(e) => setPdfFile(e.target.files[0])}
-                className="text-sm text-slate-300"
-              />
-              <button
-                onClick={generateFlashcards}
-                disabled={loading}
-                className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition px-5 py-2 rounded-xl text-sm font-semibold"
-              >
-                {loading ? "Generating..." : "Generate Flashcards"}
-              </button>
-            </div>
-
-            {flashcards.length > 0 && (
-              <div className="grid md:grid-cols-2 gap-4">
-                {flashcards.map((card, index) => (
-                  <div
-                    key={index}
-                    className="bg-slate-900 border border-slate-800 rounded-2xl p-5"
+              {quiz && (
+                <div className="bg-white/10 p-5 rounded-2xl">
+                  <ReactMarkdown
+                    remarkPlugins={[
+                      remarkGfm,
+                    ]}
                   >
-                    <h3 className="font-bold text-blue-400 mb-2 text-sm">Question</h3>
-                    <p className="mb-4 text-sm">{card.question}</p>
-                    <h3 className="font-bold text-emerald-400 mb-2 text-sm">Answer</h3>
-                    <p className="text-sm">{card.answer}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── STUDY PLANNER TAB ── */}
-        {activeTab === "planner" && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <h3 className="font-semibold text-slate-300">Create a personalised study plan</h3>
-              <div className="grid md:grid-cols-3 gap-3">
-                <input
-                  type="text"
-                  placeholder="Subject"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 p-3 rounded-xl outline-none focus:border-blue-500 text-sm"
-                />
-                <input
-                  type="text"
-                  placeholder="Exam Date (e.g. June 30)"
-                  value={examDate}
-                  onChange={(e) => setExamDate(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 p-3 rounded-xl outline-none focus:border-blue-500 text-sm"
-                />
-                <input
-                  type="number"
-                  placeholder="Hours Per Day"
-                  value={hoursPerDay}
-                  onChange={(e) => setHoursPerDay(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 p-3 rounded-xl outline-none focus:border-blue-500 text-sm"
-                />
-              </div>
-              <button
-                onClick={generateStudyPlan}
-                disabled={loading}
-                className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 transition px-5 py-3 rounded-xl text-sm font-semibold"
-              >
-                {loading ? "Generating..." : "Generate Study Plan"}
-              </button>
-            </div>
-
-            {studyPlan && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-                <h3 className="font-bold text-lg mb-3">Your Study Plan</h3>
-                <div className="prose prose-invert max-w-none text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{studyPlan}</ReactMarkdown>
+                    {quiz}
+                  </ReactMarkdown>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
+        </div>
       </div>
     </div>
   );
