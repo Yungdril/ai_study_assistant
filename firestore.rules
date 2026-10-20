@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// Firestore security rules for SmartPal.
+//
+// Deploy via the Firebase Console (Firestore Database > Rules) or
+// `firebase deploy --only firestore:rules` if you have the Firebase CLI
+// set up locally with firebase.json pointing at this file (see
+// firebase.json in the repo root).
+//
+// This is the first rules file committed to this repo. Firestore's
+// default behavior with NO rules file deployed is permissive during
+// initial project setup, but once ANY rules file is deployed, every path
+// without a matching `allow` rule is denied by default. That's why the
+// legacy `messages` collection has an explicit rule below even though
+// this phase doesn't touch it functionally — omitting it would silently
+// break the old collection the moment these rules are deployed.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Legacy flat chat history (pre-Phase-1) ---
+    // Each doc: { userId, userMessage, aiReply, createdAt }
+    match /messages/{messageId} {
+      allow read, update, delete: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId;
+    }
+
+    // --- Phase 1: conversations ---
+    // Each doc: { userId, title, model, createdAt, updatedAt }
+    match /conversations/{conversationId} {
+      allow read, update, delete: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId;
+
+      // --- Phase 1: messages nested under a conversation ---
+      // Each doc: { role, content, createdAt } — no userId on the message
+      // itself, so ownership is checked via the parent conversation doc.
+      // Messages are never edited after creation in the app (only created
+      // as part of a turn, or bulk-deleted when the conversation is
+      // deleted), so no `update` is granted here.
+      match /messages/{messageId} {
+        allow read, create, delete: if request.auth != null
+          && request.auth.uid ==
+            get(/databases/$(database)/documents/conversations/$(conversationId)).data.userId;
+      }
+    }
+
+    // Everything else is denied by default — Firestore rules deny any
+    // path with no matching `allow` rule once a rules file is in effect,
+    // so no explicit catch-all is needed (or possible to add
+    // meaningfully, since sibling `match` blocks are combined with OR,
+    // not "first match wins").
+  }
+}

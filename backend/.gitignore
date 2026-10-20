@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+
+node_modules
+
+# Temp PDF uploads written by multer — these are now cleaned up
+# automatically after each request, but ignore the folder's contents
+# as a safety net.
+uploads/*
+!uploads/.gitkeep
