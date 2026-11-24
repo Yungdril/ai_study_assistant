@@ -14,6 +14,9 @@ function getGeminiClient() {
   if (!client) {
     client = new GoogleGenAI({
       apiKey: env.QUIZ_API_KEY,
+      httpOptions: {
+        timeout: 15000,
+      },
     });
   }
 

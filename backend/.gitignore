@@ -9,3 +9,6 @@ node_modules
 # as a safety net.
 uploads/*
 !uploads/.gitkeep
+
+# Private Firebase Admin credentials
+/secrets/

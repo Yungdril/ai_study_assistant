@@ -53,12 +53,12 @@ export async function appendTurn(conversationId, { userText, aiReply }) {
     createdAt: now,
   });
 
-  const aiDocRef = doc(ref);
-  batch.set(aiDocRef, {
-    role: "assistant",
-    content: aiReply,
-    createdAt: now + 1, // keep assistant strictly after user in orderBy
-  });
+const aiDocRef = doc(ref);
+batch.set(aiDocRef, {
+  role: "assistant",
+  content: aiReply,
+  createdAt: now + 1,
+});
 
   const conversationDocRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
   batch.update(conversationDocRef, { updatedAt: now });

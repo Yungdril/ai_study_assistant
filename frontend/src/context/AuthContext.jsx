@@ -19,23 +19,9 @@ export function AuthProvider({ children }) {
     return unsubscribe;
   }, []);
 
-  const signup = async (email, password) => {
-    try {
-      return await signUp(email, password);
-    } catch (error) {
-      alert(error.message);
-      throw error;
-    }
-  };
+const signup = (email, password) => signUp(email, password);
 
-  const login = async (email, password) => {
-    try {
-      return await logIn(email, password);
-    } catch (error) {
-      alert(error.message);
-      throw error;
-    }
-  };
+const login = (email, password) => logIn(email, password);
 
   const logout = async () => {
     try {

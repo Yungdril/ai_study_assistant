@@ -1,7 +1,7 @@
 
 const dotenv = require("dotenv");
 
-dotenv.config();
+dotenv.config({ path: require("path").join(__dirname, "../.env") });
 
 if (!process.env.GROQ_API_KEY) {
   console.warn("GROQ_API_KEY is missing from the backend .env file");
@@ -25,4 +25,5 @@ const env = {
 };
 
 module.exports = env;
+
 

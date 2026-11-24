@@ -14,7 +14,7 @@ const {
   buildStudyChatMessages,
 } = require("../utils/buildStudyChatPrompt");
 const documentStore = require("../services/documentStore");
-
+const requireValidPdf = require("../middleware/requireValidPdf");
 const router = express.Router();
 
 // A cleaned document needs at least this many characters to be worth
@@ -42,20 +42,12 @@ function handleDocumentUpload(req, res, next) {
   });
 }
 
-router.post("/documents", handleDocumentUpload, async (req, res) => {
+router.post(
+  "/documents",
+  requireValidPdf.after(handleDocumentUpload),
+  async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "No PDF uploaded" });
-  }
-
-  // multer doesn't validate content type by default; the frontend already
-  // restricts to PDFs, but the API must not trust that.
-  const isPdf =
-    req.file.mimetype === "application/pdf" ||
-    req.file.originalname?.toLowerCase().endsWith(".pdf");
-
-  if (!isPdf) {
-    cleanupUpload(req.file.path);
-    return res.status(400).json({ error: "Only PDF files are supported." });
   }
 
   try {
@@ -76,11 +68,12 @@ router.post("/documents", handleDocumentUpload, async (req, res) => {
       });
     }
 
-    const doc = documentStore.createDocument({
-      fileName: req.file.originalname,
-      pageCount: pdfData.numpages || 1,
-      chunks,
-    });
+const doc = documentStore.createDocument({
+  fileName: req.file.originalname,
+  pageCount: pdfData.numpages || 1,
+  chunks,
+  userId: req.user.uid,
+});
 
     res.status(201).json({
       documentId: doc.documentId,
@@ -104,7 +97,10 @@ router.post("/documents/:documentId/chat", async (req, res) => {
     return res.status(400).json({ error: "Missing document ID." });
   }
 
-  const doc = documentStore.getDocument(documentId);
+ const doc = documentStore.getDocumentForUser(
+  documentId,
+  req.user.uid
+);
   if (!doc) {
     return res.status(404).json({
       error: "Document not found. It may have expired — please upload the PDF again.",
@@ -159,7 +155,10 @@ router.post("/documents/:documentId/explain", async (req, res) => {
     return res.status(400).json({ error: "Missing document ID." });
   }
 
-  const doc = documentStore.getDocument(documentId);
+  const doc = documentStore.getDocumentForUser(
+  documentId,
+  req.user.uid
+);
   if (!doc) {
     return res.status(404).json({
       error: "Document not found. It may have expired — please upload the PDF again.",
@@ -209,7 +208,10 @@ router.post("/documents/:documentId/study-chat", async (req, res) => {
     return res.status(400).json({ error: "Missing document ID." });
   }
 
-  const doc = documentStore.getDocument(documentId);
+  const doc = documentStore.getDocumentForUser(
+  documentId,
+  req.user.uid
+)
   if (!doc) {
     return res.status(404).json({
       error: "Document not found. It may have expired — please upload the PDF again.",

@@ -1,50 +1,54 @@
+
 const crypto = require("crypto");
 
-// In-memory only, by design for v2 — no Firebase, no external DB. Documents
-// (and their extracted chunks) live only in this process's memory and are
-// lost on restart. A future phase can swap this for persistent/vector
-// storage without changing the routes that call it, since they only see
-// createDocument/getDocument.
 const documents = new Map();
 
-const DOCUMENT_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
-const CLEANUP_INTERVAL_MS = 15 * 60 * 1000; // sweep every 15 minutes
+const DOCUMENT_TTL_MS = 2 * 60 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 
 function isExpired(doc) {
   return Date.now() - doc.createdAt > DOCUMENT_TTL_MS;
 }
 
-/**
- * Stores a newly processed document and returns its full record (including
- * the generated documentId). Chunks are plain strings; retrieval re-derives
- * chunkIndex from their position in this array.
- */
-function createDocument({ fileName, pageCount, chunks }) {
+function createDocument({ fileName, pageCount, chunks, userId }) {
+  if (typeof userId !== "string" || !userId.trim()) {
+    throw new Error("A valid userId is required to create a document.");
+  }
+
   const documentId = crypto.randomUUID();
   const doc = {
     documentId,
+    userId,
     fileName,
     pageCount,
     chunks,
     createdAt: Date.now(),
   };
+
   documents.set(documentId, doc);
   return doc;
 }
 
-/**
- * Returns the document, or undefined if it doesn't exist or has expired.
- * Checking expiry here (not just in the periodic sweep) means an expired
- * document can never be read back even in the window before the next
- * sweep runs.
- */
 function getDocument(documentId) {
   const doc = documents.get(documentId);
   if (!doc) return undefined;
+
   if (isExpired(doc)) {
     documents.delete(documentId);
     return undefined;
   }
+
+  return doc;
+}
+
+function getDocumentForUser(documentId, userId) {
+  if (typeof userId !== "string" || !userId.trim()) {
+    return undefined;
+  }
+
+  const doc = getDocument(documentId);
+  if (!doc || doc.userId !== userId) return undefined;
+
   return doc;
 }
 
@@ -62,19 +66,22 @@ let cleanupTimer = null;
 
 function startCleanupTimer() {
   if (cleanupTimer) return;
-  cleanupTimer = setInterval(cleanupExpiredDocuments, CLEANUP_INTERVAL_MS);
-  // Don't let this timer keep the process alive on its own.
+
+  cleanupTimer = setInterval(
+    cleanupExpiredDocuments,
+    CLEANUP_INTERVAL_MS
+  );
+
   cleanupTimer.unref?.();
 }
 
 function stopCleanupTimer() {
   if (!cleanupTimer) return;
+
   clearInterval(cleanupTimer);
   cleanupTimer = null;
 }
 
-// Test-only escape hatches (used by backend/tests/documentStore.test.js),
-// never called from route code.
 function _resetForTests() {
   documents.clear();
 }
@@ -86,6 +93,7 @@ function _size() {
 module.exports = {
   createDocument,
   getDocument,
+  getDocumentForUser,
   deleteDocument,
   cleanupExpiredDocuments,
   startCleanupTimer,

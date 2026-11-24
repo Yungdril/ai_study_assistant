@@ -83,8 +83,14 @@ async function run() {
   // --- 404: missing/expired document, mocked Groq never called ---------
   await withMockedGroqRoutes("unused", async (documentsRoutes, calls) => {
     const app = express();
-    app.use(express.json());
-    app.use(documentsRoutes);
+app.use(express.json());
+
+app.use((req, res, next) => {
+  req.user = { uid: "test-user-1" };
+  next();
+});
+
+app.use(documentsRoutes);
 
     await withServer(app, async (baseUrl) => {
       const res = await fetch(`${baseUrl}/documents/does-not-exist/study-chat`, {
@@ -102,6 +108,7 @@ async function run() {
 
   // --- 400: missing/empty messages array --------------------------------
   const doc = documentStore.createDocument({
+    userId: "test-user-1",
     fileName: "pricing.pdf",
     pageCount: 1,
     chunks: [
@@ -112,9 +119,35 @@ async function run() {
   await withMockedGroqRoutes("unused", async (documentsRoutes, calls) => {
     const app = express();
     app.use(express.json());
-    app.use(documentsRoutes);
+
+app.use((req, res, next) => {
+  req.user = {
+    uid: req.headers["x-test-user"] || "test-user-1",
+  };
+  next();
+});
+
+app.use(documentsRoutes);
 
     await withServer(app, async (baseUrl) => {
+      // A different authenticated user must not access this document.
+const otherUserRes = await fetch(
+  `${baseUrl}/documents/${doc.documentId}/study-chat`,
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-test-user": "test-user-2",
+    },
+    body: JSON.stringify({
+      messages: [
+        { role: "user", content: "Explain the surcharge." },
+      ],
+    }),
+  }
+);
+
+assert.equal(otherUserRes.status, 404);
       const missingRes = await fetch(`${baseUrl}/documents/${doc.documentId}/study-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -146,8 +179,14 @@ async function run() {
     calls
   ) => {
     const app = express();
-    app.use(express.json());
-    app.use(documentsRoutes);
+app.use(express.json());
+
+app.use((req, res, next) => {
+  req.user = { uid: "test-user-1" };
+  next();
+});
+
+app.use(documentsRoutes);
 
     const conversation = [
       { role: "user", content: "Explain the surcharge." },
@@ -203,9 +242,14 @@ async function run() {
     "Here's a new practice question (not from the document): ...",
     async (documentsRoutes, calls) => {
       const app = express();
-      app.use(express.json());
-      app.use(documentsRoutes);
+ app.use(express.json());
 
+app.use((req, res, next) => {
+  req.user = { uid: "test-user-1" };
+  next();
+});
+
+app.use(documentsRoutes);
       const conversation = [
         { role: "user", content: "Explain Question 1." },
         { role: "assistant", content: "Question 1 asks you to..." },

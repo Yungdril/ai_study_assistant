@@ -18,9 +18,9 @@ const firebaseConfig = {
 };
 
 if (!firebaseConfig.apiKey) {
-  console.warn(
-    "⚠️ Firebase config is missing. Did you create frontend/.env from .env.example?"
-  );
+ console.warn(
+  "Firebase config is missing. Did you create frontend/.env from .env.example?"
+);
 }
 
 const app = initializeApp(firebaseConfig);

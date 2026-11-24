@@ -1,7 +1,6 @@
 const express = require("express");
 const fs = require("fs");
 const pdfParse = require("pdf-parse");
-const upload = require("../middleware/upload");
 const { groq, MODEL } = require("../services/groqClient");
 const env = require("../config/env");
 const { getGeminiClient } = require("../services/geminiClient");
@@ -10,18 +9,28 @@ const {
   FLASHCARDS_SYSTEM_PROMPT,
 } = require("../services/prompts");
 const cleanupUpload = require("../utils/cleanupUpload");
-
+const handlePdfUpload = require("../middleware/handlePdfUpload");
 const router = express.Router();
 
 
-router.post("/upload-pdf", upload.single("pdf"), async (req, res) => {
+router.post("/upload-pdf", handlePdfUpload, async (req, res) => {
+  const requestStartedAt = Date.now();
+
   try {
+    console.log("[PDF] Summary request received");
+
     if (!req.file) {
       return res.status(400).json({ error: "No PDF uploaded" });
     }
 
+    const extractionStartedAt = Date.now();
+
     const dataBuffer = fs.readFileSync(req.file.path);
     const pdfData = await pdfParse(dataBuffer);
+
+    console.log(
+      `[PDF] Text extraction completed in ${Date.now() - extractionStartedAt} ms`
+    );
     const text = pdfData.text.slice(0, 4000);
 
     if (!text.trim()) {
@@ -33,42 +42,87 @@ router.post("/upload-pdf", upload.single("pdf"), async (req, res) => {
     const ai = getGeminiClient();
 
    
-let response;
+
+let summary;
 
 try {
-  response = await ai.models.generateContent({
+    const geminiStartedAt = Date.now();
+  console.log("[PDF] Gemini summary generation started");
+  const response = await ai.models.generateContent({
     model: env.QUIZ_MODEL,
     contents: text,
     config: {
       systemInstruction: PDF_SUMMARY_SYSTEM_PROMPT,
     },
   });
+
+    console.log(
+    `[PDF] Gemini completed in ${Date.now() - geminiStartedAt} ms`
+  );
+
+  summary = response.text;
 } catch (error) {
-  // Retry with the fallback model only for temporary availability errors.
-  if (error.status !== 503 && error.status !== 429) {
+
+const isTemporaryGeminiFailure =
+  error.status === 429 ||
+  error.status === 503 ||
+  error.status === 504 ||
+  error.name === "TimeoutError" ||
+  error.name === "AbortError" ||
+  error.code === "ETIMEDOUT" ||
+  error.code === "ECONNABORTED" ||
+  error.message?.includes("DEADLINE_EXCEEDED");
+
+
+  if (!isTemporaryGeminiFailure) {
     throw error;
   }
 
-  console.warn("Primary Gemini model unavailable. Trying fallback model.");
+  console.warn(
+    "[PDF] Gemini temporarily unavailable or timed out. Falling back to Groq."
+  );
 
-  response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: text,
-    config: {
-      systemInstruction: PDF_SUMMARY_SYSTEM_PROMPT,
-    },
+  console.warn(
+    "Gemini temporarily unavailable. Falling back to Groq for PDF summary."
+  );
+  const groqStartedAt = Date.now();
+  console.log("[PDF] Groq fallback started");
+
+  const completion = await groq.chat.completions.create({
+
+    messages: [
+      {
+        role: "system",
+        content: PDF_SUMMARY_SYSTEM_PROMPT,
+      },
+      {
+        role: "user",
+        content: `Summarize the following PDF text:\n\n${text}`,
+      },
+    ],
+    model: MODEL,
   });
+
+  console.log(
+    `[PDF] Groq completed in ${Date.now() - groqStartedAt} ms`
+  );
+
+  summary = completion.choices[0]?.message?.content;
 }
-
-
-    const summary = response.text;
 
     if (!summary) {
       throw new Error("Gemini returned an empty PDF summary");
     }
 
+        console.log(
+      `[PDF] Summary request completed in ${Date.now() - requestStartedAt} ms`
+    );
+
     return res.json({ summary });
   } catch (error) {
+        console.error(
+      `[PDF] Summary request failed after ${Date.now() - requestStartedAt} ms`
+    );
     console.error("PDF SUMMARY ERROR:", {
       status: error.status,
       code: error.code,
@@ -89,10 +143,14 @@ try {
 
 router.post(
   "/generate-flashcards",
-  upload.single("pdf"),
+  handlePdfUpload,
   async (req, res) => {
     try {
-      const filePath = req.file.path;
+     if (!req.file) {
+  return res.status(400).json({ error: "No PDF uploaded." });
+}
+
+const filePath = req.file.path;
 
       const dataBuffer = fs.readFileSync(filePath);
       const pdfData = await pdfParse(dataBuffer);

@@ -17,6 +17,10 @@ const tests = [
   "./documentsExplainRoute.test.js",
   "./buildStudyChatPrompt.test.js",
   "./documentStudyChatRoute.test.js",
+  "./documentsUploadRoute.test.js",
+  "./requireAuth.test.js",
+  "./validatePdf.test.js",
+  "./requireValidPdf.test.js",
 ];
 
 async function main() {

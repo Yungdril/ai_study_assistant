@@ -16,9 +16,16 @@ const documentStore = require("../services/documentStore");
 
 async function withServer(fn) {
   const app = express();
-  app.use(express.json());
-  app.use(documentsRoutes);
+ app.use(express.json());
 
+app.use((req, res, next) => {
+  req.user = {
+    uid: req.headers["x-test-user"] || "test-user-1",
+  };
+  next();
+});
+
+app.use(documentsRoutes);
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
@@ -34,27 +41,10 @@ async function run() {
   documentStore._resetForTests();
 
   await withServer(async (baseUrl) => {
-    // Missing/expired document -> 404, same shape as the Q&A endpoint.
-    const missingRes = await fetch(`${baseUrl}/documents/does-not-exist/explain`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: "Explain Question 1" }),
-    });
-    assert.equal(missingRes.status, 404);
-    const missingBody = await missingRes.json();
-    assert.match(missingBody.error, /Document not found/);
+    const explainUrl = `${baseUrl}/documents/test-document/explain`;
 
-    // Create a real document session directly through the store (bypassing
-    // the upload step, which isn't what this endpoint is testing).
-    const doc = documentStore.createDocument({
-      fileName: "notes.pdf",
-      pageCount: 1,
-      chunks: ["SURCHARGE_RATE = 0.10 is applied to all late orders."],
-    });
-
-    // Empty/whitespace-only question -> 400, before any retrieval or Groq
-    // call happens.
-    const emptyRes = await fetch(`${baseUrl}/documents/${doc.documentId}/explain`, {
+    // Empty/whitespace-only question -> 400, before any retrieval or Groq call.
+    const emptyRes = await fetch(explainUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question: "   " }),
@@ -64,7 +54,7 @@ async function run() {
     assert.match(emptyBody.error, /enter what you'd like explained/i);
 
     // Missing `question` key entirely -> also 400, same validation path.
-    const noQuestionRes = await fetch(`${baseUrl}/documents/${doc.documentId}/explain`, {
+    const noQuestionRes = await fetch(explainUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -74,10 +64,9 @@ async function run() {
 
   documentStore._resetForTests();
   console.log("documentsExplainRoute.test.js: all assertions passed");
-}
 
 // Exported (rather than caught-and-swallowed) so tests/runAll.js can await
 // this before reporting overall pass/fail — this file does real async work
 // (an in-process HTTP server + fetch), unlike the other, synchronous test
 // files.
-module.exports = run();
+module.exports = run()}

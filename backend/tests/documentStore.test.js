@@ -1,4 +1,4 @@
-const assert = require("node:assert/strict");
+﻿const assert = require("node:assert/strict");
 const documentStore = require("../services/documentStore");
 
 function run() {
@@ -9,12 +9,23 @@ function run() {
     fileName: "notes.pdf",
     pageCount: 3,
     chunks: ["chunk one", "chunk two"],
+    userId: "test-user-1",
   });
   assert.ok(created.documentId);
+  // The owner can retrieve the document.
+assert.equal(
+  documentStore.getDocumentForUser(created.documentId, "test-user-1").documentId,
+  created.documentId
+);
+
+// A different user must not be able to retrieve it.
+assert.equal(
+  documentStore.getDocumentForUser(created.documentId, "test-user-2"),
+  undefined
+);
   assert.equal(created.fileName, "notes.pdf");
   assert.equal(created.pageCount, 3);
   assert.equal(created.chunks.length, 2);
-
   const fetched = documentStore.getDocument(created.documentId);
   assert.ok(fetched);
   assert.equal(fetched.documentId, created.documentId);
@@ -32,6 +43,7 @@ function run() {
     fileName: "old.pdf",
     pageCount: 1,
     chunks: ["x"],
+    userId: "test-user-1",
   });
   // Reach into the store's internal state via a second create + manual
   // backdating isn't exposed by the public API (intentionally), so we
@@ -48,8 +60,8 @@ function run() {
 
   // cleanupExpiredDocuments sweeps out anything past the TTL.
   documentStore._resetForTests();
-  documentStore.createDocument({ fileName: "a.pdf", pageCount: 1, chunks: ["y"] });
-  documentStore.createDocument({ fileName: "b.pdf", pageCount: 1, chunks: ["z"] });
+  documentStore.createDocument({ fileName: "a.pdf", pageCount: 1, chunks: ["y"], userId: "test-user-1", });
+  documentStore.createDocument({ fileName: "b.pdf", pageCount: 1, chunks: ["z"], userId: "test-user-1", });
   assert.equal(documentStore._size(), 2, "both documents should be stored before the sweep");
 
   const nowDuringSweep = Date.now;
